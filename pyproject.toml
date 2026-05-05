@@ -1,0 +1,29 @@
+[project]
+name = "github-pr-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=3.2.4",
+    "gradio[mcp]>=6.13.0",
+    "huggingface-hub[mcp]>=0.32.0",
+    "mcp[cli]>=1.27.0",
+    "python-dotenv>=1.2.2",
+    "smolagents[mcp]>=1.22.0",
+    "textblob>=0.20.0",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+    "ruff>=0.15.12",
+]
+
