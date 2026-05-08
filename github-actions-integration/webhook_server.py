@@ -25,9 +25,12 @@ async def handle_webhook(request):
             "timestamp": datetime.now().isoformat(),
             "event_type": request.headers.get("X-Github-Event", "unknown"),
             "action": data.get("action"),
-            "workflow_run": data.get("workflow_run"),
-            "check_run": data.get("check_run"),
             "repository": data.get("repository", {}).get("full_name"),
+            "workflow_run": data.get("workflow_run", {}).get("name"),
+            "workflow_status": data.get("workflow_run", {}).get("conclusion"),
+            "workflow_url": data.get("workflow_run", {}).get("html_url"),
+            "branch": data.get("workflow_run", {}).get("head_branch"),
+            "commit_sha": data.get("workflow_run", {}).get("head_sha"),
             "sender": data.get("sender", {}).get("login"),
         }
 
