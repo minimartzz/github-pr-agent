@@ -190,7 +190,7 @@ async def get_recent_actions_events(limit: int = 10) -> str:
                 events = json.load(f)
 
             # Limit to latest 10 entries
-            events = events[-10:]
+            events = events[-limit:]
             return json.dumps({"events": events})
         else:
             return json.dumps({"events": []})

@@ -12,7 +12,7 @@ from pathlib import Path
 from aiohttp import web
 
 # File to store events
-EVENTS_FILE = Path(__file__).parent / "github_events.json"
+EVENTS_FILE = Path(__file__).parent.parent / "github_events.json"
 
 
 async def handle_webhook(request):
