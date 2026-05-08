@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("pr-agent")
 
 # PR template directory
-TEMPLATES_DIR = Path(__file__).parent / "templates"
+TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 CHANGE_TYPE_MAPPER = {
     "bug": "bug.md",
@@ -34,9 +34,12 @@ CHANGE_TYPE_MAPPER = {
 }
 FILE_TO_TYPE = {v: k for k, v in CHANGE_TYPE_MAPPER.items()}
 
+# Webhook events
+EVENTS_FILE = Path(__file__).parent.parent / "github_events.json"
+
 
 # ========================================
-# TOOLS
+# PR TEMPLATES TOOL
 # ========================================
 @mcp.tool()
 async def analyse_file_changes(
@@ -61,12 +64,15 @@ async def analyse_file_changes(
     """
     try:
         if working_dir is None:
-            # Get Claudes working directory
-            context = mcp.get_context()
-            root_result = await context.session.list_roots()
-            working_dir = root_result.roots[0].uri.path
+            try:
+                # Get Claudes working directory
+                context = mcp.get_context()
+                root_result = await context.session.list_roots()
+                working_dir = root_result.roots[0].uri.path
+            except Exception:
+                working_dir = os.getcwd()
 
-        cwd = working_dir if working_dir else os.getcwd()
+        cwd = working_dir or os.getcwd()
 
         # Get git diff from subprocesses
         command = ["git", "diff", f"{base_branch}...HEAD"]
@@ -78,8 +84,8 @@ async def analyse_file_changes(
             return json.dumps({"error": "No changes found in current repo"})
 
         # Truncate lines
+        lines = git_diff.split("\n")
         if len(git_diff) > max_diff_lines:
-            lines = git_diff.split("\n")
             trunc_lines = lines[:max_diff_lines]
             trunc_diff = "\n".join(trunc_lines)
             trunc_diff += f"\n Truncated diff lines {len(trunc_diff)} / {len(git_diff)}"
@@ -105,7 +111,7 @@ async def analyse_file_changes(
 
         out = {
             "stats": stats_result.stdout,
-            "total_lines": len(trunc_lines),
+            "total_lines": len(lines),
             "diff": git_diff if include_diff else "Use include_diff=True to see diff",
             "files_changed": files_result.stdout,
             "commit_message": commit_result.stdout,
@@ -142,6 +148,17 @@ async def get_pr_templates() -> str:
 
 @mcp.tool()
 async def suggest_template(changes_summary: str, change_type: str) -> str:
+    """
+    Suggests which PR template to be used
+
+    Args:
+        changes_summary (str): Description of the proposed changes from your analysis
+        change_type (str): Recommended type of change you've identified
+            (bug, feature, docs, refactor, etc.)
+
+    Returns:
+        str: _description_
+    """
     templates = await get_pr_templates()
     templates = json.loads(templates)
 
@@ -160,6 +177,25 @@ async def suggest_template(changes_summary: str, change_type: str) -> str:
             " changes in your code",
         }
     )
+
+
+# ========================================
+# GITHUB ACTIONS TOOL
+# ========================================
+@mcp.tool()
+async def get_recent_actions_events(limit: int = 10) -> str:
+    try:
+        if EVENTS_FILE.exists():
+            with open(EVENTS_FILE, "r") as f:
+                events = json.load(f)
+
+            # Limit to latest 10 entries
+            events = events[-10:]
+            return json.dumps({"events": events})
+        else:
+            return json.dumps({"events": []})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 if __name__ == "__main__":

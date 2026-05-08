@@ -51,7 +51,7 @@ class TestAnalyseFileChanges:
     @pytest.mark.asyncio
     async def test_returns_json_string(self):
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(stdout="", stderr="")
+            mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
 
             result = await analyse_file_changes()
 
