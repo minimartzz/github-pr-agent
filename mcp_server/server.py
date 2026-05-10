@@ -99,7 +99,7 @@ async def analyse_file_changes(
 
         # Truncate lines
         lines = git_diff.split("\n")
-        if len(git_diff) > max_diff_lines:
+        if len(lines) > max_diff_lines:
             trunc_lines = lines[:max_diff_lines]
             trunc_diff = "\n".join(trunc_lines)
             trunc_diff += f"\n Truncated diff lines {len(trunc_diff)} / {len(git_diff)}"
@@ -147,17 +147,23 @@ async def get_pr_templates() -> str:
     Returns:
         str: JSON dump of list of available templates
     """
-    files = os.listdir(TEMPLATES_DIR)
-    templates = [
-        {
-            "filename": name,
-            "type": FILE_TO_TYPE[name],
-            "content": (TEMPLATES_DIR / name).read_text(),
-        }
-        for name in files
-    ]
+    try:
+        files = os.listdir(TEMPLATES_DIR)
+        templates = []
+        for name in files:
+            if name not in FILE_TO_TYPE:
+                continue
+            templates.append(
+                {
+                    "filename": name,
+                    "type": FILE_TO_TYPE[name],
+                    "content": (TEMPLATES_DIR / name).read_text(),
+                }
+            )
 
-    return json.dumps(templates)
+        return json.dumps(templates)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
@@ -187,7 +193,7 @@ async def suggest_template(changes_summary: str, change_type: str) -> str:
             "reasoning": f"Based on your analysis of '{changes_summary}', this appears"
             f" to be a {change_type} change.",
             "template_content": selected_template["content"],
-            "usage_hint": "Cluade can help you fill out a PR template based on the"
+            "usage_hint": "Claude can help you fill out a PR template based on the"
             " changes in your code",
         }
     )
@@ -249,11 +255,12 @@ async def get_workflow_status(workflow_name: Optional[str] = None) -> str:
 
             # Get the latest event for each commit
             status = {}
-            prev_ts = datetime.min
             for event in events:
                 commit = event["commit_sha"]
                 curr_ts = datetime.fromisoformat(event["timestamp"])
-                if commit not in status or curr_ts > prev_ts:
+                if commit not in status or curr_ts > datetime.fromisoformat(
+                    status[commit]["timestamp"]
+                ):
                     status[commit] = {
                         "name": event.get("workflow_run", ""),
                         "status": event.get("workflow_status"),
@@ -261,7 +268,6 @@ async def get_workflow_status(workflow_name: Optional[str] = None) -> str:
                         "branch": event.get("branch", ""),
                         "html_url": event.get("workflow_url", ""),
                     }
-                prev_ts = curr_ts
 
             return json.dumps(list(status.values()), indent=2)
 
