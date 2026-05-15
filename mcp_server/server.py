@@ -53,7 +53,6 @@ EVENTS_FILE = Path(__file__).parent.parent / "github_events.json"
 # TOOLS
 # ========================================
 
-
 # -------------------- PR TEMPLATE TOOLS --------------------
 @mcp.tool()
 async def analyse_file_changes(
@@ -277,9 +276,53 @@ async def get_workflow_status(workflow_name: Optional[str] = None) -> str:
         return json.dumps({"error": str(e)})
 
 
+# -------------------- SLACK NOTIFICATIONS --------------------
+@mcp.tool()
+async def send_slack_notification(message: str) -> str:
+    """
+    Send a formatted slack notification to the team's slack channel
+
+    Args:
+        message (str): Message to send to Slack (slack markdown)
+
+    Returns:
+        str: JSON output of slack message
+    """
+    webhook_url = os.environ.get("SLACK_WEBHOOK_URL", "")
+    if not webhook_url:
+        return json.dumps({"error": "No Slack Webhook URL provided"})
+    try:
+        import requests
+        payload = {
+            "text": message,
+            "mrkdwn": True
+        }
+
+        response = requests.post(
+            webhook_url,
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return json.dumps( {"message": "✅ Successfully sent Slack message!"} )
+        else:
+            return json.dumps({
+                "message": f"❌ Failed to send Slack message. Response code: {response.status_code}"
+            })
+    except requests.exceptions.Timeout:
+        return json.dumps({"error": "Request timeout"})
+    except requests.exceptions.ConnectionError:
+        return json.dumps({"error": "Error with connection"})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
 # ========================================
 # PROMPTS
 # ========================================
+
+# -------------------- GITHUB ACTIONS PROMPTS --------------------
 @mcp.prompt()
 async def analyse_ci_results():
     """Analyse the recent CI/CD results captured by Github Actions"""
@@ -405,5 +448,67 @@ Structure your response as:
 - [Similar issues or solutions]"""
 
 
+# -------------------- SLACK MESSAGE PROMPTS --------------------
+@mcp.prompt()
+async def format_ci_failure_alert():
+    """Create a slack alert for CI failures"""
+    return """Format the Github Actions failure as a Slack message using ONLY
+Slack markdown syntax.
+
+:rotating_light: *CI Failure Alert* :rotating_light:
+
+A CI workflow has failed:
+*Workflow*: workflow_name
+*Branch*: branch_name
+*Status*: Failed
+*View Details*: <https://github.com/test/repo/actions/runs/123|View Logs>
+
+Please check the logs to review the issues.
+
+CRITICAL: Use EXACT Slack link format: <https://full-url|Link Text>
+Examples:
+- CORRECT: <https://github.com/user/repo|Repository>
+- WRONG: [Repository](https://github.com/user/repo)
+- WRONG: https://github.com/user/repo
+
+Slack formatting rules:
+- *text* for bold (NOT **text**)
+- `text` for code
+- > text for quotes
+- Use simple bullet format without special characters
+- :emoji_name: for emojis"""
+
+@mcp.prompt
+async def format_ci_success_summary():
+    """Create a slack message for successful deployments"""
+    return """Format the results of this Github Actions as a Slack message 
+using only Slack markdown format.
+
+:white_check_mark: *Deployment Successful* :white_check_mark:
+
+*KEY CHANGES*:
+- Change 1: description
+- Change 2: description
+
+*LINK*
+<https://github.com/user/repo|View Changes>
+
+CRITICAL: Use EXACT Slack link format: <https://full-url|Link Text>
+Examples:
+- CORRECT: <https://github.com/user/repo|Repository>
+- WRONG: [Repository](https://github.com/user/repo)
+- WRONG: https://github.com/user/repo
+
+Slack formatting rules:
+- *text* for bold (NOT **text**)
+- `text` for code
+- > text for quotes
+- Use simple bullet format with - or *
+- :emoji_name: for emojis"""
+
+
 if __name__ == "__main__":
+    print("Starting pr-agent MCP Server...")
+    print("Ensure that you have a valid URL attached to SLACK_WEBHOOK_URL")
+    print("To receive Github Actions webhooks run the webhook server separately")
     mcp.run()
